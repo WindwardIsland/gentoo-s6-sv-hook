@@ -1,7 +1,7 @@
 ## Purpose
 When following online guides on how to switch your init system on Gentoo (e.g. [OpenRC to s6](https://wiki.gentoo.org/wiki/User:Capezotte/s6_on_Gentoo)), you may come across an inevitable problem: once I've fully switched over, **where do I retrieve the actual services for that init?**
 
-Thankfully, [Artix Linux](https://artixlinux.org/) (an Arch-based non-SystemD distro) provides services for the four most well-known alternative inits: [runit](https://smarden.org/runit), [OpenRC](https://wiki.gentoo.org/wiki/Gentoo), [s6](https://skarnet.org/software/s6), and [dinit](https://github.com/davmac314/dinit). 
+Thankfully, [Artix Linux](https://artixlinux.org/) (an Arch-based non-SystemD distro) provides services for the four most well-known alternative inits: [runit](https://smarden.org/runit), [OpenRC](https://wiki.gentoo.org/wiki/OpenRC), [s6](https://skarnet.org/software/s6), and [dinit](https://github.com/davmac314/dinit). 
 
 In the case of s6, Artix sources the services from two main places:
 
@@ -26,7 +26,7 @@ On Gentoo, hooks paired with Portage/`emerge` can be used to automate this proce
 ## Mechanism
 ### `bashrc`
 - `post_pkg_postinst()` is a hook function that will run after a package has been *installed*.
-- `post_pkg_postrm()` is a hook function that will run *after* a package has been *removed*.
+- `post_pkg_postrm()` is a hook function that will run after a package has been *removed*.
 - In the hooks, `|| true` is needed so that the package will still succeed in being installed or removed, even though those failed for its corresponding service. `s6-sv-hook` will output errors as to why those happened.
 
 ### `s6-sv-hook`
