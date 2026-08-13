@@ -18,7 +18,7 @@ On Gentoo, hooks paired with Portage/`emerge` can be used to automate this proce
 
 ## Installation
 > [!TIP]
-> While you can switch inits on Gentoo *after* installation, it is much easier to switch *during* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed system.
+> While you can switch inits on Gentoo *after* installation (of the system), it is much easier to switch *during* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed system.
 
 1. Copy `bashrc` over to `/etc/portage`. This file contains functions that will run the script (`s6-sv-hook`) with certain options depending if a package is installed or removed. The corresponding service will then be installed or removed, respectively. **Do not** make the file executable, as it will be *sourced* by Portage, *not run*.
 2. Copy `s6-sv-hook` over to `/usr/bin` (so it's in your `PATH`). This is the script that will be called by the hook functions in `/etc/portage/bashrc`. Remember to make the script executable.
