@@ -1,10 +1,12 @@
 ## Purpose
-When following online guides on how to switch your init system on Gentoo from OpenRC to others (e.g. [to s6](https://wiki.gentoo.org/wiki/User:Capezotte/s6_on_Gentoo)), you may come across an inevitable problem: once I've fully switched over, **where do I retrieve the actual services for that init?**
+When following online guides on how to switch your init system on Gentoo (e.g. [OpenRC to s6](https://wiki.gentoo.org/wiki/User:Capezotte/s6_on_Gentoo)), you may come across an inevitable problem: once I've fully switched over, **where do I retrieve the actual services for that init?**
 
-Thankfully, Artix Linux (an Arch-based non-SystemD distro) provides services for the four most well-known alternative inits: runit, OpenRC, s6, and dinit. In the case of s6, Artix sources the services from two main places:
+Thankfully, [Artix Linux](https://artixlinux.org/) (an Arch-based non-SystemD distro) provides services for the four most well-known alternative inits: [runit](https://smarden.org/runit), [OpenRC](https://wiki.gentoo.org/wiki/Gentoo), [s6](https://skarnet.org/software/s6), and [dinit](https://github.com/davmac314/dinit). 
 
-- [`s6-scripts`, which provide essential s6-rc oneshots and longruns for startup/shutdown](https://gitea.artixlinux.org/artix/s6-scripts)
-- [`s6-services`, which provide s6-rc services for certain packages, e.g. NetworkManager](https://gitea.artixlinux.org/artix/s6-services/)
+In the case of s6, Artix sources the services from two main places:
+
+- [`s6-scripts`](https://gitea.artixlinux.org/artix/s6-scripts), which provide essential s6-rc oneshots and longruns for startup/shutdown
+- [`s6-services`](https://gitea.artixlinux.org/artix/s6-services/), which provide s6-rc services for certain packages, e.g. NetworkManager
 
 Typically on Artix, the process of installing and removing these services is automated with the use of [PKGBUILDs](https://wiki.archlinux.org/title/PKGBUILD). Take a look at the following:
 
@@ -16,7 +18,7 @@ On Gentoo, hooks paired with Portage/`emerge` can be used to automate this proce
 
 ## Installation
 > [!TIP]
-> While you can switch your init from OpenRC to s6 (or really to any init) using the aforementioned guide *after* installation, it is much easier to switch *during* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed Gentoo system with OpenRC.
+> While you can switch inits on Gentoo *after* installation, it is much easier to switch *during* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed system.
 
 1. Copy `bashrc` over to `/etc/portage`. This file contains functions that will run the script (`s6-sv-hook`) with certain options depending if a package is installed or removed. The corresponding service will then be installed or removed, respectively. **Do not** make the file executable, as it will be *sourced* by Portage, *not run*.
 2. Copy `s6-sv-hook` over to `/usr/bin` (so it's in your `PATH`). This is the script that will be called by the hook functions in `/etc/portage/bashrc`. Remember to make the script executable.
