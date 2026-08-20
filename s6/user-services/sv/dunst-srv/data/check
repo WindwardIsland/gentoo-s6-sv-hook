@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dbus-send --session --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.GetNameOwner string:org.freedesktop.Notifications

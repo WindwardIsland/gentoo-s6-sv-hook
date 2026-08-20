@@ -1,0 +1,7 @@
+#!/usr/bin/execlineb -P
+
+importas -S HOME
+fdmove -c 2 1
+
+envfile ${HOME}/.config/s6/user-envfile
+exec s6-notifyoncheck pipewire

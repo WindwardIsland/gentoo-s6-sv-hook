@@ -1,0 +1,17 @@
+#!/usr/bin/execlineb -P
+
+importas -S XDG_RUNTIME_DIR
+
+fdmove -c 2 1
+
+define DBUS_ADDRESS "unix:path=${XDG_RUNTIME_DIR}/bus"
+
+export DBUS_SESSION_BUS_ADDRESS ${DBUS_ADDRESS}
+
+importas -S HOME
+
+foreground { redirfd -w 1 ${HOME}/.config/s6/user-envfile printenv }
+
+envfile ${HOME}/.config/s6/user-envfile
+
+exec s6-notifyoncheck dbus-daemon --session --nofork --nopidfile --address=${DBUS_ADDRESS}

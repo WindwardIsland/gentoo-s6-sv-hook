@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dbus-send --bus="unix:path=${XDG_RUNTIME_DIR}/bus" / org.freedesktop.DBus.Peer.Ping

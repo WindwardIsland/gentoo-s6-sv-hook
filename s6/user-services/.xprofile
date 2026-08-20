@@ -1,0 +1,18 @@
+S6DIR="${HOME}/.config/s6"
+SCANDIR="${S6DIR}/service"
+BOOTDIR="${S6DIR}/db/boot/compiled"
+LIVEDIR="${S6DIR}/db/live/s6-rc"
+
+export S6_CONF="${S6DIR}/s6-frontend.conf"
+
+if [ -f "${S6DIR}/user-envfile" ]; then
+	rm "${S6DIR}/user-envfile"
+fi
+
+if [ -n "$(find "${SCANDIR}" -mindepth 1 -maxdepth 1)" ]; then
+	rm "${SCANDIR}"/{*,.*}
+fi
+
+s6-svscan "${SCANDIR}" &
+s6-rc-init -c "${BOOTDIR}" -l "${LIVEDIR}" "${SCANDIR}"
+s6-rc -l "${LIVEDIR}" -u change default

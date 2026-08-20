@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+VERSION="${1}"
+
+echo "==> ${0} -- Creating fixed names for kernel ${VERSION} vmlinuz and initramfs <=="
+
+EFI_DIR="/efi/EFI/Gentoo"
+BOOT_DIR="/boot"
+
+# Kernel image
+if [[ -f "${BOOT_DIR}/vmlinuz-${VERSION}" ]]; then
+	cp "${BOOT_DIR}/vmlinuz-${VERSION}" "${EFI_DIR}/vmlinuz"
+fi
+
+# Initramfs
+if [[ -f "${BOOT_DIR}/initramfs-${VERSION}.img" ]]; then
+	cp "${BOOT_DIR}/initramfs-${VERSION}.img" "${EFI_DIR}/initramfs.img"
+fi
+
+# System.map
+if [[ -f "${BOOT_DIR}/System.map-${VERSION}" ]]; then
+	cp "${BOOT_DIR}/System.map-${VERSION}" "${EFI_DIR}"
+fi
+
+# Config
+if [[ -f "${BOOT_DIR}/config-${VERSION}" ]]; then
+	cp "${BOOT_DIR}/config-${VERSION}" "${EFI_DIR}"
+fi
+
+# Intel Ucode
+if [[ -f "${BOOT_DIR}/intel-uc.img" ]]; then
+	cp "${BOOT_DIR}/intel-uc.img" "${EFI_DIR}"
+fi
+
+echo "==> ${0} -- Removing old EFI files for kernel ${VERSION} <=="
+
+# Remove all old EFI files
+if compgen -G "${EFI_DIR}/*old*" > /dev/null; then
+	rm "${EFI_DIR}"/*old*
+fi

@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+
+# set -x
+
+SERVICE_DIR="/etc/s6/sv-skel/s6-services"
+
+install() {
+	PACKAGE="$1"
+	BEST_MIRROR="$(curl -s "https://status.artixlinux.org/mirrors/" | grep -B 3 "Tier 1" | grep -oP "(?<=href=\"/).+(?=/\")")"
+	MIRROR_URL="$(curl -Ls "https://status.artixlinux.org/${BEST_MIRROR}" | grep -A1 "<tr>" | grep -oP "(?<=href=\").+(?=/\">)")"
+
+	retrieve_svs() {
+		local REPO="${1}"
+		local MAX_ATTEMPTS=5
+		local WAITTIME=12 # in total 1 min (12 * 5) to try if Artix repo mirrors are down for some reason
+		local ATTEMPT=1
+		local DATA=""
+
+		while [ ${ATTEMPT} -le ${MAX_ATTEMPTS} ]; do
+			DATA="$(curl -Ls "${MIRROR_URL}/${REPO}/os/x86_64")"
+
+			if [ $? -eq 0 ] && [ -n "${DATA}" ]; then
+				echo "${DATA}" | grep -v "\.sig" | grep -oP "(?<=href=\").+?-s6(?=-[0-9]+)"
+				return 0
+			else
+				echo -e "===\n" >&2
+				echo "==> ${0} -- WARNING: Failed to retrieve ${REPO} repo. Attempt ${ATTEMPT}/${MAX_ATTEMPTS}. <==" >&2
+
+				if [ ${ATTEMPT} -lt ${MAX_ATTEMPTS} ]; then
+					echo "==> Retrying ${REPO} in ${WAITTIME} seconds... <==" >&2
+					sleep ${WAITTIME}
+				fi
+				ATTEMPT=$((ATTEMPT + 1))
+			fi
+		done
+
+		echo "==> ERROR: Failed to retrieve ${REPO} repo after ${MAX_ATTEMPTS} attempts." >&2
+		return 1
+	}
+
+	mapfile -t S6_SERVICES < <(for repo in system world galaxy; do retrieve_svs "${repo}"; done | sort)
+
+	if printf '%s\0' "${S6_SERVICES[@]}" | grep -Fxqz -- "${PACKAGE}"; then
+		echo -e "===\n"
+		echo -e "==> ${0} -- Installing s6 service for ${PACKAGE} ... <==\n"
+		echo -e "==> ${0} -- Retrieving prerequisite files (install.sh, conf, log dir)... <==\n"
+
+		git_download() {
+			git archive --remote=https://gitea.artixlinux.org/artix/s6-services HEAD install.sh conf log/ srv/"${PACKAGE}" | tar -x -C "${SERVICE_DIR}"
+			if [[ "${PIPESTATUS[*]}" =~ [^0[:space:]] ]]; then
+				return 1
+			fi
+		}
+		
+		git_download_attempt() {
+			MAX_ATTEMPTS=5 
+			WAITTIME=12 # in total 1 min (12 * 5) to try if Artix gitea mirrors are down for some reason
+
+			# ^ this is a reoccurring problem especially for gitea since the Artix devs have verification enabled,
+			# adding a significant delay when accessing these
+
+			ATTEMPT=1
+			SUCCESS=0
+
+			while [ ${ATTEMPT} -le ${MAX_ATTEMPTS} ]; do
+				if git_download; then
+					SUCCESS=1
+					break
+				else
+					echo "==> Connection failed. Attempt ${ATTEMPT}/${MAX_ATTEMPTS}."
+					echo "Retrying in ${WAITTIME} seconds..."
+					sleep ${WAITTIME}
+					ATTEMPT=$((ATTEMPT + 1))
+				fi
+			done
+
+			if [ ${SUCCESS} -ne 1 ]; then
+				echo -e "\n==> ${0} -- ERROR: Failed to download necessary files from Artix repos after ${MAX_ATTEMPTS} attempts. <==\n"
+				exit 1
+			fi
+		}
+
+		git_download_attempt
+
+		if [ -d "${SERVICE_DIR}" ]; then
+			chmod +x "${SERVICE_DIR}/install.sh"
+			echo -e "==> ${0} -- Running install script... <==\n"
+
+			# when this script runs OUTSIDE of the directory install.sh is located, that doesn't run, so a subshell is needed
+			
+			(
+				cd "${SERVICE_DIR}"
+				./install.sh "${PACKAGE}"
+			)
+
+			echo -e "\n==> ${0} -- s6 service for ${PACKAGE} successfully INSTALLED. <==\n"
+			echo -e "===\n"
+		else
+			echo -e "==> ${0} -- ERROR: ${SERVICE_DIR} does not exist. <=="
+			echo -e "===\n"
+			exit 1
+		fi
+			
+	else
+		echo -e "==="
+		echo -e "==> ${0} -- ERROR: ${PACKAGE} does not have an equivalent s6 service script. <=="
+		echo -e "===\n"
+		exit 1
+	fi
+}
+
+remove() {
+	PACKAGE="$1"
+	SYSTEM_SV="/etc/s6/sv"
+
+	if [ -d "${SERVICE_DIR}/srv/${PACKAGE}" ]; then
+		echo -e "===\n"
+		echo -e "==> ${0} -- Removing s6 service for ${PACKAGE} ... <==\n"
+		# removing service directories originally found in the srv directory
+		for sv_dir in "${SERVICE_DIR}"/srv/"${PACKAGE}"/*; do
+			if [ -d "${SYSTEM_SV}/${sv_dir}" ]; then
+				rm -rv "${SYSTEM_SV}/${sv_dir}"
+			fi
+		done
+		
+		# removing leftover service directories not originally from the srv directory (e.g. log directories)
+		mapfile -t LEFTOVER_SV < <(ls "${SYSTEM_SV}" | grep -i "${PACKAGE}")
+
+		for sv_dir in "${LEFTOVER_SV[@]}"; do
+			rm -rv "${SYSTEM_SV}/${sv_dir}"
+		done
+
+		# removing config files for the service directories that were copied over
+		CONFIG_DIR="/etc/s6/config"
+		if ls "${CONFIG_DIR}" | grep -qi "${PACKAGE}"; then
+			mapfile -t CONFIGS < <(ls "${CONFIG_DIR}" | grep -i "${PACKAGE}")
+			for conf in "${CONFIGS[@]}"; do
+				rm -v "${CONFIG_DIR}/${conf}"
+			done
+		fi
+
+		# removing the downloaded service (from Artix repos) itself
+		rm -rv "${SERVICE_DIR}/srv/${PACKAGE}"
+
+		echo -e "\n==> ${0} -- s6 service for ${PACKAGE} successfully REMOVED. <==\n"
+		echo -e "===\n"
+	else
+		echo -e "===\n"
+		echo -e "==> ${0} -- ERROR: ${PACKAGE} does not have an s6 service script installed. <==\n"
+		echo -e "===\n"
+		exit 1
+	fi
+}
+
+while getopts "i:r:" OPTION; do
+	case "$OPTION" in
+		i) install "${OPTARG}" ;;
+		r) remove "${OPTARG}" ;;
+	esac
+done

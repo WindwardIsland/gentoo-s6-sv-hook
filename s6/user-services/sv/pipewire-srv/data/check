@@ -1,0 +1,9 @@
+#!/bin/sh
+
+PIPEWIRE_SOCKET="${XDG_RUNTIME_DIR}/pipewire-0"
+
+if [ -S "${PIPEWIRE_SOCKET}" ]; then
+	exit 0
+else
+	exit 1
+fi

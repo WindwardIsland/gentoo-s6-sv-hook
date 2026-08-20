@@ -1,0 +1,11 @@
+#!/usr/bin/execlineb -P
+
+importas -S HOME
+
+pipeline -w { s6-log T ${HOME}/.config/s6/logs/playerctld }
+
+envfile ${HOME}/.config/s6/user-envfile
+
+fdmove -c 2 1
+
+playerctld daemon
