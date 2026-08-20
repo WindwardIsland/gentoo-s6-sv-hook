@@ -2,7 +2,7 @@
 
 # set -x
 
-SERVICE_DIR="/etc/s6/sv-skel/s6-services"
+SERVICE_DIR="/etc/s6/sv-skel"
 
 install() {
 	PACKAGE="$1"
