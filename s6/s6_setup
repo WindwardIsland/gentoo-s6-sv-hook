@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+setup_base() {
+	mkdir -pv /etc/s6/{repo,sv-skel,rc}
+	cp -rv utilities /etc/s6/
+	cp -v s6-sv-hook /usr/bin/
+	cp -v ../locale.sh /etc/profile.d/
+	cp -v s6.conf /etc/
+}
+
+setup_system() {
+	git clone https://gitea.artixlinux.org/artix/s6-scripts
+	sed -i "s/etmpfiles/systemd-tmpfiles/g" s6-scripts/tmpfiles-{dev,setup}/up
+	sed -i "s/esysusers/systemd-sysusers/g" s6-scripts/sysusers/up
+	sed -i "s:/usr/lib/artix:/etc/s6/utilities:g" s6-scripts/{binfmt,mount-cgroups}/up
+	EFI_STRING="mount \-o rw \-t efivarfs efivarfs /sys/firmware/efi/efivars"
+	sed -i "33s:.*:\t${EFI_STRING}:" s6-scripts/mount-sysfs/up
+	(
+		cd s6-scripts
+		make install
+	)
+}
+
+setup_user() {
+	S6_DIR="/home/${1}/.config/s6"
+
+	cp -v user-services/.xprofile "/home/${1}"
+	cp -rv user-services "${S6_DIR}"
+	mkdir -v "${S6_DIR}"/{repo,db,logs,service}
+}
+
+case ${1} in
+	base) setup_base ;;
+	system) setup_system ;;
+	user) setup_user ;;
+esac
