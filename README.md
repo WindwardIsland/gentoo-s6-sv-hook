@@ -37,7 +37,7 @@ This overlay contains the *latest* s6-related packages from skarnet.org that are
 
 First, unmerge and deselect OpenRC and SysVinit from the system:
 ```
-(chroot) livecd # emerge -c sys-apps/openrc sys-apps/sysvinit
+(chroot) livecd # emerge -C net-misc/netifrc sys-apps/openrc sys-apps/sysvinit
 ```
 
 Then, install the s6 supervision suite:
