@@ -1,38 +1,120 @@
-## Purpose
-When following online guides on how to switch your init system on Gentoo (e.g. [OpenRC to s6](https://wiki.gentoo.org/wiki/User:Capezotte/s6_on_Gentoo)), you may come across an inevitable problem: once I've fully switched over, **where do I retrieve the actual services for that init?**
+# Setup
 
-Thankfully, [Artix Linux](https://artixlinux.org/) (an Arch-based non-SystemD distro) provides services for the four most well-known alternative inits: [runit](https://smarden.org/runit), [OpenRC](https://wiki.gentoo.org/wiki/OpenRC), [s6](https://skarnet.org/software/s6), and [dinit](https://github.com/davmac314/dinit). 
+The steps below should be followed after cloning this repository.
 
-In the case of s6, Artix sources the services from two main places:
+Ideally, this setup should be completed during installation.
+## Portage
 
-- [`s6-scripts`](https://gitea.artixlinux.org/artix/s6-scripts), which provide essential s6-rc oneshots and longruns for startup/shutdown
-- [`s6-services`](https://gitea.artixlinux.org/artix/s6-services/), which provide s6-rc services for certain packages, e.g. NetworkManager
+Copy my Portage configurations in `portage/` to `/etc/portage` with the following command:
+```
+(chroot) livecd # cp -a portage/ /etc/
+```
 
-Typically on Artix, the process of installing and removing these services is automated with the use of [PKGBUILDs](https://wiki.archlinux.org/title/PKGBUILD). Take a look at the following:
+## UEFI Post-Kernel Configuration Hook
+On my UEFI system, I personally use [`efibootmgr`](https://wiki.gentoo.org/wiki/Efibootmgr) instead of secondary bootloaders such as GRUB, systemd-boot, rEFInd, etc. It's less overhead for me to manage, and I don't really need a secondary bootloader anyway since I'm only booting into one entry all the time (that being Gentoo). To avoid having to specify the kernel version part of the initramfs and vmlinuz EFI files when creating a boot entry, I have a hook that automatically renames them to fixed names.
 
-- For the [`s6-scripts` PKGBUILD](https://gitea.artixlinux.org/packages/s6-scripts/src/branch/master/PKGBUILD), the corresponding repository is cloned. `make install` is then run in order to copy all the services to where they should be (typically either `/etc/s6/sv/` or `/etc/s6/adminsv/`). This is typically a one-time operation and is already automated by running the aforementioned command.
+Copy the hook (`99-vmlinuz-initramfs-fixed`) into `/etc/kernel/postinst.d`:
+```
+(chroot) livecd # cp 99-vmlinuz-initramfs-fixed /etc/kernel/postinst.d
+```
+Generate the EFI files (depending on the kernel used):
+```
+(chroot) livecd # emerge --config sys-kernel/gentoo-kernel{-bin}
+```
 
-- For `s6-services`, typically the package name followed by an indication of the init (e.g. [`networkmanager-s6`](https://gitea.artixlinux.org/packages/networkmanager-s6/src/branch/master/PKGBUILD)) is installed. This then clones the corresponding repository and runs a script to place the necessary service where it should be located (`/etc/s6/sv`).
-
-On Gentoo, hooks paired with Portage/`emerge` can be used to automate this process in a similar way. This project will mainly focus on automating installing and removing services for *custom installed* packages.
-
-## Installation
+## s6 init system setup
 > [!TIP]
-> While you can switch inits on Gentoo *after* installation (of the system), it is much easier to switch *during* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed system.
+> This assumes that you are switching inits *during* the installation process. It is much easier to switch than *after* installation as you would have less packages installed, less service scripts installed, and overall less overhead to deal with than a fully installed system.
 
-1. Copy `bashrc` over to `/etc/portage`. This file contains functions that will run the script (`s6-sv-hook`) with certain options depending if a package is installed or removed. The corresponding service will then be installed or removed, respectively. **Do not** make the file executable, as it will be *sourced* by Portage, *not run*.
-2. Copy `s6-sv-hook` over to `/usr/bin` (so it's in your `PATH`). This is the script that will be called by the hook functions in `/etc/portage/bashrc`. Remember to make the script executable.
+### Installation
+If not yet done, add my [overlay](https://github.com/WindwardIsland/windwardisland-gentoo-overlay) with the following commands:
+```
+(chroot) livecd # eselect repository add windwardisland git https://github.com/WindwardIsland/windwardisland-gentoo-overlay.git
+(chroot) livecd # emaint sync -r windwardisland
+```
 
-## Mechanism
-### `bashrc`
-- `post_pkg_postinst()` is a hook function that will run after a package has been *installed*.
-- `post_pkg_postrm()` is a hook function that will run after a package has been *removed*.
-- In the hooks, `|| true` is needed so that the package will still succeed in being installed or removed, even though those failed for its corresponding service. `s6-sv-hook` will output errors as to why those happened.
+This overlay contains the *latest* s6-related packages from skarnet.org that aren't available in the Portage tree yet. There are also custom patches and settings applied to these packages that were taken from Artix Linux's s6 flavor.
 
-### `s6-sv-hook`
-This script has two main options:
-- `-i`: This runs the `install()` function, with the specified package name as an argument. This will check the Artix `world` repository to see if this package has a corresponding s6 service, and then installs it. If no service was found, the script will abort with exit code 1.
-- `-r`: This runs the `remove()` function, with the specified package name as an argument. This will check if the service has already been installed, and if it has, it will be removed. If the service wasn't installed previously, the script will abort with exit code 1.
+First, unmerge and deselect OpenRC and SysVinit from the system:
+```
+(chroot) livecd # emerge -c sys-apps/openrc sys-apps/sysvinit
+```
+
+Then, install the s6 supervision suite:
+```
+(chroot) livecd # emerge s6 s6-rc s6-linux-init s6-frontend
+```
+
+Create a symbolic link to `/sbin/init`:
+```
+(chroot) livecd # ln -sf /usr/bin/s6-init /sbin/init
+```
+
+### System Services
+Setup s6 system services (basic and necessary longruns and oneshots) using the `s6_setup` script inside `s6/`:
+```
+(chroot) livecd # cd s6
+(chroot) livecd # ./s6_setup base
+(chroot) livecd # ./s6_setup system
+```
+
+The s6 supervision suite uses a [repository](https://skarnet.org/software/s6-rc/repodefs.html) to manage services. This will not be gone into detail here; please consult [official documentation](https://skarnet.org/software) for more information. We can set up the repository and initialize the system services with the following commands:
+```
+(chroot) livecd # s6 repo init
+(chroot) livecd # s6 repo list
+```
+
+If the previous command didn't output anything, then we need to create a set in the repository containing all our services and their startup states/prescriptions (for defaults, the set name will be `current`):
+```
+(chroot) livecd # s6-rc-set-new -r /etc/s6/repo current
+```
+
+We can list `current`'s services and their prescriptions, and then enable/disable certain ones of our choosing:
+```
+(chroot) livecd # s6 set status
+(chroot) livecd # s6 set enable/disable <servicenames>
+```
+
+Finally, we need to commit the set (i.e. save the changes), and install it. These commands compile a database containing all our services, and copy it over to a directory where it will be read at boot time:
+```
+(chroot) livecd # s6 set commit
+(chroot) livecd # s6 live install --init
+```
+
+Note that when editing services in our fully installed system, use `s6 repo sync` to synchronize the repository, and then the following `s6 set`/`live` commands. In addition, remove the `--init` option from `s6 live install`. The option should *only* be used when services aren't managed with s6-rc yet, which is appropriate during installation.
+
+Some system services create logs owned by the `s6log` user and group. We can create this user with the following command:
+```
+(chroot) livecd # useradd -U -r -s /sbin/nologin -d /dev/null s6log
+```
+
+The `s6log` user and group will automatically be created every time due to the `sysusers` system service. This service will look in `/usr/lib/sysusers.d` and source the `s6log.conf` file that was copied over earlier with `s6_setup base`.
+
+> [!IMPORTANT]
+> The installed Portage hook (`s6/s6-sv-hook`) will automatically search the Artix repos for an s6 service script corresponding to the *packages specified* when running emerge. This includes any dependencies. It is **your responsibility to check** the service stores (located at `/etc/s6/sv` and `/etc/s6/adminsv`) for any extra services that you do not want! Be sure to remove them as `s6 repo sync` will fail if any services have dependencies that are non-existent (due to the corresponding packages themselves not being installed).
+
+### User Services
+Make sure this repository is copied over to a location writable by a non-root user from where it was originally during installation. You may also clone this repository again after installation.
+
+> [!IMPORTANT]
+> This will setup user services for an **Xorg** installation. If you are using Wayland, feel free to edit the below script to your liking.
+
+Run the setup script, specifying the appropriate non-root user:
+```
+$ cd s6
+$ ./s6_setup user <non-root user>
+```
+Go to the location where the user services are installed (default: `~/.config/s6`). Run the following commands to initialize the repository and create the database:
+- `$ s6 repo init`
+- `$ s6 repo list`
+- If the previous command returned nothing: `s6-rc-set-new -r "${HOME}/.config/s6/repo" current`
+- `$ s6 set status`
+- `$ s6 set enable/disable <servicenames>`
+- `$ s6 set commit`
+- `$ s6 live install`
+
+Log out (or reboot), and all the enabled user services should've started successfully!
+
 
 ## Sources
 - [Gentoo Wiki on Portage hooks](https://wiki.gentoo.org/wiki/Handbook:Parts/Portage/Advanced#Hooking_into_the_emerge_process)
