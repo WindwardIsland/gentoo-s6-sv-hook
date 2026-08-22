@@ -50,6 +50,8 @@ Create a symbolic link to `/sbin/init`:
 (chroot) livecd # ln -sf /usr/bin/s6-init /sbin/init
 ```
 
+Be sure to regenerate your initramfs afterwards as it will contain the *old* link to `/sbin/init`! Make sure that when regenerating, there is some indication that the initramfs is aware of the new link. For instance, ugRD would indicate this with `init_target: /usr/bin/s6-init` (notice how the target file and not the link is shown).
+
 ### System Services
 Setup s6 system services (basic and necessary longruns and oneshots) using the `s6_setup` script inside `s6/`:
 ```
